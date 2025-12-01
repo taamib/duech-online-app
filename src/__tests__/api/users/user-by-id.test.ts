@@ -18,6 +18,7 @@ import { NextResponse } from 'next/server';
 vi.mock('@/lib/api-auth', () => ({
   setupUserApiRoute: vi.fn(),
   validateRoleAssignment: vi.fn(),
+  canManageUser: vi.fn(),
 }));
 
 vi.mock('@/lib/queries', () => ({
@@ -276,13 +277,94 @@ describe('DELETE /api/users/[id]', () => {
     expect(data.error).toBe('Cannot delete your own account');
   });
 
-  it('should delete user successfully', async () => {
+  it('should return 404 if target user not found', async () => {
     const mockAdmin = createMockSessionUser({ id: '1', role: 'admin' });
-    const mockDeletedUser = createMockUser({ id: 2 });
+    vi.mocked(apiAuth.setupUserApiRoute).mockResolvedValue({
+      currentUser: mockAdmin,
+      userId: 999,
+    });
+    vi.mocked(queries.getUserById).mockResolvedValue(null);
+
+    const request = createMockRequest('http://localhost:3000/api/users/999', {
+      method: 'DELETE',
+    });
+    const response = await DELETE(request, { params: createParams('999') });
+    const data = await expectResponse<{ error: string }>(response, 404);
+
+    expect(data.error).toBe('User not found');
+  });
+
+  it('should return 403 when admin tries to delete superadmin', async () => {
+    const mockAdmin = createMockSessionUser({ id: '1', role: 'admin' });
+    const mockSuperAdmin = createMockUser({ id: 2, role: 'superadmin' });
     vi.mocked(apiAuth.setupUserApiRoute).mockResolvedValue({
       currentUser: mockAdmin,
       userId: 2,
     });
+    vi.mocked(queries.getUserById).mockResolvedValue(mockSuperAdmin);
+    vi.mocked(apiAuth.canManageUser).mockReturnValue(false);
+
+    const request = createMockRequest('http://localhost:3000/api/users/2', {
+      method: 'DELETE',
+    });
+    const response = await DELETE(request, { params: createParams('2') });
+    const data = await expectResponse<{ error: string }>(response, 403);
+
+    expect(data.error).toBe('No tienes permisos para eliminar este usuario');
+    expect(queries.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('should allow superadmin to delete admin', async () => {
+    const mockSuperAdmin = createMockSessionUser({ id: '1', role: 'superadmin' });
+    const mockAdmin = createMockUser({ id: 2, role: 'admin' });
+    vi.mocked(apiAuth.setupUserApiRoute).mockResolvedValue({
+      currentUser: mockSuperAdmin,
+      userId: 2,
+    });
+    vi.mocked(queries.getUserById).mockResolvedValue(mockAdmin);
+    vi.mocked(apiAuth.canManageUser).mockReturnValue(true);
+    vi.mocked(queries.deleteUser).mockResolvedValue(mockAdmin);
+
+    const request = createMockRequest('http://localhost:3000/api/users/2', {
+      method: 'DELETE',
+    });
+    const response = await DELETE(request, { params: createParams('2') });
+    const data = await expectResponse<{ success: boolean }>(response, 200);
+
+    expect(data.success).toBe(true);
+    expect(queries.deleteUser).toHaveBeenCalledWith(2);
+  });
+
+  it('should allow superadmin to delete superadmin', async () => {
+    const mockSuperAdmin = createMockSessionUser({ id: '1', role: 'superadmin' });
+    const mockTargetSuperAdmin = createMockUser({ id: 2, role: 'superadmin' });
+    vi.mocked(apiAuth.setupUserApiRoute).mockResolvedValue({
+      currentUser: mockSuperAdmin,
+      userId: 2,
+    });
+    vi.mocked(queries.getUserById).mockResolvedValue(mockTargetSuperAdmin);
+    vi.mocked(apiAuth.canManageUser).mockReturnValue(true);
+    vi.mocked(queries.deleteUser).mockResolvedValue(mockTargetSuperAdmin);
+
+    const request = createMockRequest('http://localhost:3000/api/users/2', {
+      method: 'DELETE',
+    });
+    const response = await DELETE(request, { params: createParams('2') });
+    const data = await expectResponse<{ success: boolean }>(response, 200);
+
+    expect(data.success).toBe(true);
+    expect(queries.deleteUser).toHaveBeenCalledWith(2);
+  });
+
+  it('should delete user successfully', async () => {
+    const mockAdmin = createMockSessionUser({ id: '1', role: 'admin' });
+    const mockDeletedUser = createMockUser({ id: 2, role: 'lexicographer' });
+    vi.mocked(apiAuth.setupUserApiRoute).mockResolvedValue({
+      currentUser: mockAdmin,
+      userId: 2,
+    });
+    vi.mocked(queries.getUserById).mockResolvedValue(mockDeletedUser);
+    vi.mocked(apiAuth.canManageUser).mockReturnValue(true);
     vi.mocked(queries.deleteUser).mockResolvedValue(mockDeletedUser);
 
     const request = createMockRequest('http://localhost:3000/api/users/2', {
@@ -300,10 +382,13 @@ describe('DELETE /api/users/[id]', () => {
 
   it('should return 500 on database error', async () => {
     const mockAdmin = createMockSessionUser({ id: '1', role: 'admin' });
+    const mockUser = createMockUser({ id: 2, role: 'lexicographer' });
     vi.mocked(apiAuth.setupUserApiRoute).mockResolvedValue({
       currentUser: mockAdmin,
       userId: 2,
     });
+    vi.mocked(queries.getUserById).mockResolvedValue(mockUser);
+    vi.mocked(apiAuth.canManageUser).mockReturnValue(true);
     vi.mocked(queries.deleteUser).mockRejectedValue(new Error('Database error'));
 
     const request = createMockRequest('http://localhost:3000/api/users/2', {

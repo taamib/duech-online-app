@@ -22,6 +22,7 @@ vi.mock('@/lib/auth', () => ({
 
 vi.mock('@/lib/role-utils', () => ({
   validateRoleAssignment: vi.fn(),
+  canManageUser: vi.fn(),
 }));
 
 vi.mock('@/lib/queries', () => ({
@@ -287,10 +288,84 @@ describe('deleteUserAction', () => {
     expect(result.error).toBe('Cannot delete your own account');
   });
 
+  it('should fail if target user not found', async () => {
+    vi.mocked(auth.getSessionUser).mockResolvedValue(
+      createMockSessionUser({ id: '1', role: 'admin' })
+    );
+    vi.mocked(queries.getUserById).mockResolvedValue(null);
+
+    const result = await deleteUserAction(999);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('User not found');
+  });
+
+  it('should fail when admin tries to delete superadmin', async () => {
+    vi.mocked(auth.getSessionUser).mockResolvedValue(
+      createMockSessionUser({ id: '1', role: 'admin' })
+    );
+    vi.mocked(queries.getUserById).mockResolvedValue(createMockUser({ id: 2, role: 'superadmin' }));
+    vi.mocked(roleUtils.canManageUser).mockReturnValue(false);
+
+    const result = await deleteUserAction(2);
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('No tienes permisos para eliminar este usuario');
+    expect(queries.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('should allow superadmin to delete admin', async () => {
+    vi.mocked(auth.getSessionUser).mockResolvedValue(
+      createMockSessionUser({ id: '1', role: 'superadmin' })
+    );
+    vi.mocked(queries.getUserById).mockResolvedValue(createMockUser({ id: 2, role: 'admin' }));
+    vi.mocked(roleUtils.canManageUser).mockReturnValue(true);
+    vi.mocked(queries.deleteUser).mockResolvedValue(createMockUser({ id: 2 }));
+
+    const result = await deleteUserAction(2);
+
+    expect(result.success).toBe(true);
+    expect(queries.deleteUser).toHaveBeenCalledWith(2);
+  });
+
+  it('should allow superadmin to delete superadmin', async () => {
+    vi.mocked(auth.getSessionUser).mockResolvedValue(
+      createMockSessionUser({ id: '1', role: 'superadmin' })
+    );
+    vi.mocked(queries.getUserById).mockResolvedValue(createMockUser({ id: 2, role: 'superadmin' }));
+    vi.mocked(roleUtils.canManageUser).mockReturnValue(true);
+    vi.mocked(queries.deleteUser).mockResolvedValue(createMockUser({ id: 2 }));
+
+    const result = await deleteUserAction(2);
+
+    expect(result.success).toBe(true);
+    expect(queries.deleteUser).toHaveBeenCalledWith(2);
+  });
+
+  it('should allow admin to delete lexicographer', async () => {
+    vi.mocked(auth.getSessionUser).mockResolvedValue(
+      createMockSessionUser({ id: '1', role: 'admin' })
+    );
+    vi.mocked(queries.getUserById).mockResolvedValue(
+      createMockUser({ id: 2, role: 'lexicographer' })
+    );
+    vi.mocked(roleUtils.canManageUser).mockReturnValue(true);
+    vi.mocked(queries.deleteUser).mockResolvedValue(createMockUser({ id: 2 }));
+
+    const result = await deleteUserAction(2);
+
+    expect(result.success).toBe(true);
+    expect(queries.deleteUser).toHaveBeenCalledWith(2);
+  });
+
   it('should delete user successfully', async () => {
     vi.mocked(auth.getSessionUser).mockResolvedValue(
       createMockSessionUser({ id: '1', role: 'admin' })
     );
+    vi.mocked(queries.getUserById).mockResolvedValue(
+      createMockUser({ id: 2, role: 'lexicographer' })
+    );
+    vi.mocked(roleUtils.canManageUser).mockReturnValue(true);
     vi.mocked(queries.deleteUser).mockResolvedValue(createMockUser({ id: 2 }));
 
     const result = await deleteUserAction(2);
@@ -303,6 +378,10 @@ describe('deleteUserAction', () => {
     vi.mocked(auth.getSessionUser).mockResolvedValue(
       createMockSessionUser({ id: '1', role: 'admin' })
     );
+    vi.mocked(queries.getUserById).mockResolvedValue(
+      createMockUser({ id: 2, role: 'lexicographer' })
+    );
+    vi.mocked(roleUtils.canManageUser).mockReturnValue(true);
     vi.mocked(queries.deleteUser).mockRejectedValue(new Error('Database error'));
 
     const result = await deleteUserAction(2);

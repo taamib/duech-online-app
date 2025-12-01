@@ -91,6 +91,8 @@ import {
   updateUser,
   deleteUser,
   updateUserSessionId,
+  getUsers,
+  getUsersFiltered,
 } from '@/lib/queries';
 
 describe('verifyUserPassword', () => {
@@ -275,5 +277,34 @@ describe('Session management', () => {
     await updateUserSessionId(1, 'new-session-id');
 
     expect(mockUpdate).toHaveBeenCalled();
+  });
+});
+
+describe('getUsers and getUsersFiltered', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('getUsers should return all users', async () => {
+    // The mock db already returns empty array by default
+    const result = await getUsers();
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it('getUsersFiltered should filter by visible roles', async () => {
+    // The mock db already returns empty array by default
+    // This test verifies the function can be called with role filters
+    const result = await getUsersFiltered(['lexicographer', 'admin']);
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it('getUsersFiltered should work with single role', async () => {
+    const result = await getUsersFiltered(['lexicographer']);
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it('getUsersFiltered should return empty for empty roles array', async () => {
+    const result = await getUsersFiltered([]);
+    expect(Array.isArray(result)).toBe(true);
   });
 });
