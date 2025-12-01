@@ -10,7 +10,7 @@
 'use server';
 
 import { getSessionUser, SessionUser } from '@/lib/auth';
-import { validateRoleAssignment } from '@/lib/role-utils';
+import { validateRoleAssignment, canManageUser } from '@/lib/role-utils';
 import {
   createUser,
   updateUser,
@@ -296,6 +296,7 @@ export interface DeleteUserResult {
 /**
  * Deletes a user account.
  * Users cannot delete their own account.
+ * Validates role hierarchy - admins cannot delete superadmins.
  *
  * @param userId - The ID of the user to delete
  * @returns Result indicating success or error
@@ -310,6 +311,23 @@ export async function deleteUserAction(userId: number): Promise<DeleteUserResult
       return {
         success: false,
         error: 'Cannot delete your own account',
+      };
+    }
+
+    // Get target user to check role hierarchy
+    const targetUser = await getUserById(userId);
+    if (!targetUser) {
+      return {
+        success: false,
+        error: 'User not found',
+      };
+    }
+
+    // Validate role hierarchy - admins cannot delete superadmins
+    if (targetUser.role && !canManageUser(currentUser.role!, targetUser.role)) {
+      return {
+        success: false,
+        error: 'No tienes permisos para eliminar este usuario',
       };
     }
 

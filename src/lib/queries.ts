@@ -50,7 +50,7 @@
  * @see {@link SearchWordsParams} - Search parameters type
  */
 
-import { eq, ilike, or, and, sql, SQL, isNotNull, asc } from 'drizzle-orm';
+import { eq, ilike, or, and, sql, SQL, isNotNull, asc, inArray } from 'drizzle-orm';
 import bcrypt from 'bcrypt';
 import { db } from '@/lib/db';
 import { words, meanings, users, passwordResetTokens, examples } from '@/lib/schema';
@@ -523,6 +523,26 @@ export async function getUsers() {
       createdAt: users.createdAt,
     })
     .from(users);
+}
+
+/**
+ * Retrieves users filtered by roles that the current user can see.
+ * Admins cannot see superadmins - they shouldn't know they exist.
+ *
+ * @param visibleRoles - Array of roles that should be visible to the current user
+ * @returns Array of user records with id, username, email, role, and createdAt
+ */
+export async function getUsersFiltered(visibleRoles: string[]) {
+  return await db
+    .select({
+      id: users.id,
+      username: users.username,
+      email: users.email,
+      role: users.role,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(inArray(users.role, visibleRoles));
 }
 
 /**

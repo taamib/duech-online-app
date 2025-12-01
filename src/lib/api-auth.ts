@@ -9,7 +9,7 @@
 
 import { NextResponse } from 'next/server';
 import { getSessionUser, type SessionUser } from '@/lib/auth';
-export { validateRoleAssignment } from '@/lib/role-utils';
+export { validateRoleAssignment, canManageUser } from '@/lib/role-utils';
 
 /**
  * Verifies the user is authenticated and has admin/superadmin role.
