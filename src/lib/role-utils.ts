@@ -37,3 +37,25 @@ export function validateRoleAssignment(
 
   return { valid: true };
 }
+
+/**
+ * Check if a user can manage (edit/delete) another user based on role hierarchy.
+ * Admins cannot manage superadmins - they shouldn't even see them.
+ */
+export function canManageUser(currentUserRole: string, targetUserRole: string): boolean {
+  const allowedRoles = getAllowedRoles(currentUserRole);
+  return allowedRoles.includes(targetUserRole);
+}
+
+/**
+ * Get roles that should be visible to the current user.
+ * Admins should not see superadmins at all.
+ */
+export function getVisibleRoles(currentUserRole: string): string[] {
+  if (currentUserRole === 'superadmin') {
+    return ['lexicographer', 'admin', 'superadmin'];
+  } else if (currentUserRole === 'admin') {
+    return ['lexicographer', 'admin'];
+  }
+  return [];
+}

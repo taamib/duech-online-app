@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { getSessionUser } from '@/lib/auth';
-import { getUsers } from '@/lib/queries';
+import { getUsersFiltered } from '@/lib/queries';
+import { getVisibleRoles } from '@/lib/role-utils';
 import UserManagementClient from '@/components/users/user-management-client';
 
 export default async function UsersPage() {
@@ -26,8 +27,10 @@ export default async function UsersPage() {
     redirect('/buscar');
   }
 
-  // Fetch users
-  const users = await getUsers();
+  // Fetch users filtered by what this user can see
+  // Admins cannot see superadmins - they shouldn't know they exist
+  const visibleRoles = getVisibleRoles(user.role!);
+  const users = await getUsersFiltered(visibleRoles);
 
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 lg:px-8">

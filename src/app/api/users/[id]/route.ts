@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateRoleAssignment, setupUserApiRoute } from '@/lib/api-auth';
+import { validateRoleAssignment, setupUserApiRoute, canManageUser } from '@/lib/api-auth';
 import { updateUser, deleteUser, getUserById } from '@/lib/queries';
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -71,6 +71,20 @@ export async function DELETE(
     // Prevent self-deletion
     if (currentUser && String(currentUser.id) === String(userId)) {
       return NextResponse.json({ error: 'Cannot delete your own account' }, { status: 400 });
+    }
+
+    // Get target user to check role hierarchy
+    const targetUser = await getUserById(userId!);
+    if (!targetUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Validate role hierarchy - admins cannot delete superadmins
+    if (currentUser && targetUser.role && !canManageUser(currentUser.role!, targetUser.role)) {
+      return NextResponse.json(
+        { error: 'No tienes permisos para eliminar este usuario' },
+        { status: 403 }
+      );
     }
 
     // Delete user
