@@ -97,16 +97,6 @@ function mapUsersToOptions(users: User[]) {
   }));
 }
 
-function filterLexicographers(users: User[]) {
-  return users.filter((user) => user.role === 'lexicographer');
-}
-
-/**
- * Get lexicographer options for dropdowns
- */
-export function getLexicographerOptions(users: User[]) {
-  return mapUsersToOptions(filterLexicographers(users));
-}
 /**
  * Get lexicographer and Admins options for dropdowns
  */
