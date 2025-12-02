@@ -50,6 +50,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error generating and sending report:', error);
-    return NextResponse.json({ error: 'Failed to generate and send report' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    return NextResponse.json({ 
+      error: 'Failed to generate and send report',
+      details: errorMessage,
+      stack: process.env.NODE_ENV === 'development' ? errorStack : undefined,
+      fullError: String(error)
+    }, { status: 500 });
   }
 }
